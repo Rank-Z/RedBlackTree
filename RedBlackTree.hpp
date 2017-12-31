@@ -1,10 +1,15 @@
 #ifndef REDBLACKTREE_HPP
 #define REDBLACKTREE_HPP
 
+#include<functional>
+#include<memory>
+
 template<typename Key>
 class RB_node
 {
 public:
+	using key_type = Key;
+	using value_type = key_type;
 
 	RB_node(const Key&key , RB_node* p = nullptr , RB_node* l = nullptr , RB_node* r = nullptr)
 		:k(key) , par(p) , left(l) , right(r)
@@ -26,13 +31,60 @@ public:
 	RB_node* right;
 };
 
-template<typename Key,class nodetype>
+template<typename treetype>
+class RBtree_iterator
+{
+	RBtree_iterator() = delete;
+
+	RBtree_iterator(treetype* t,nodptr* n)
+		:tree(t),node(n)
+	{   }
+
+	RBtree_iterator& operator++()
+	{
+		node = tree->successor(node);
+		return *this;
+	}
+
+	RBtree_iterator operator++(int)
+	{
+		RBtree_iterator ret(tree , node);
+		node = tree->successor(node);
+		return ret;
+	}
+
+	RBtree_iterator& operator--()
+	{
+		node = tree->predecessor(node);
+		return *this;
+	}
+
+	RBtree_iterator operator--(int)
+	{
+		RBtree_iterator ret(tree , node);
+		node = tree->predecessor(node);
+		return ret;
+	}
+
+private:
+	using nodeptr = typename treetype::nodeptr;
+	
+	treetype* tree;
+	nodeptr* node;
+};
+
+template<typename nodetype,
+	typename Compare=::std::less<typename nodetype::key_type>,
+	typename Alloc=::std::allocator<nodetype>>
 class RB_Tree
 {
 public:
+	using Key = typename nodetype::key_type;
 	using key_type = Key;
-	using nodeptr = nodetype * ;
-
+	using value_type = typename nodetype::value_type;
+	using nodeptr = nodetype*;
+	using allocator_type = Alloc;
+	using iterator = RBtree_iterator<RB_Tree>;
 	RB_Tree()
 	{
 		nil = &nilnode;
@@ -57,14 +109,25 @@ public:
 		return back_count;
 	}
 
-	RB_Tree& insert(key_type& key)
+	void insert_multiable(const key_type& key)
 	{
-		nodeptr np = new nodetype (key);
+		nodeptr np = buynode(key);
 		insert(np);
-		return *this;
 	}
 
-	RB_Tree& insert(nodeptr np)
+	bool insert_unique(const key_type& key)
+	{
+		if (find(key) == nullptr)
+		{
+			nodeptr np = buynode(key);
+			insert(np);
+			return true;
+		}
+		
+		return false;
+	}
+
+	void insert(nodeptr np)
 	{
 		nodeptr parent = nil;
 		for (nodeptr temp = root; temp != nil;)
@@ -86,8 +149,6 @@ public:
 		np->left = nil;
 		np->isred = true;
 		insert_fixup(np);
-
-		return *this;
 	}
 
 	nodeptr find(const key_type& key) const
@@ -102,7 +163,10 @@ public:
 			else
 				now = now->right;
 		}
-		return now;
+		if (now != nil)
+			return now;
+		else
+			return nullptr;
 	}
 
 	bool deletekey(const key_type& key)
@@ -117,7 +181,7 @@ public:
 			return false;
 	}
 
-	RB_Tree& erase(nodeptr z)
+	void erase(nodeptr z)
 	{
 		nodeptr x;
 		nodeptr y = z;
@@ -154,7 +218,6 @@ public:
 			delete_fixup(x);
 
 		delete z;
-		return *this;
 	}
 
 	void clear()
@@ -163,7 +226,67 @@ public:
 		root = nil;
 	}
 
+	nodeptr successor(nodeptr np) const
+	{
+		if (np->right != nil)
+			return minimum(np->right);
+
+		nodeptr parent = np->par;
+		for (;parent!=nil&&np==parent->right;)
+		{
+			np = parent;
+			parent = parent->par;
+		}
+
+		if (parent != nil)
+			return parent;
+		else
+			return nullptr;
+	}
+
+	nodeptr predecessor(nodeptr np) const
+	{
+		if (np->left != nil)
+			return maxmum(np->left);
+
+		nodeptr parent = np->par;
+		for (; parent != nil && np == parent->left)
+		{
+			np = parent;
+			parent = parent->par;
+		}
+
+		if (parent != nil)
+			return parent;
+		else
+			return nullptr;
+	}
+
+	nodeptr first() const
+	{
+		if (root == nil)
+			return nullptr;
+		else
+			return minimum(root);
+	}
+
+	nodeptr last() const
+	{
+		if (root == nil)
+			return nullptr;
+		else
+			return maxmum(root);
+	}
+
 private:
+
+	nodeptr buynode(const key_type& key)
+	{
+		allocator_type allocator;
+		nodeptr np=allocator.allocate(1);
+		allocator.construct(np , key);
+		return np;
+	}
 
 	void insert_fixup(nodeptr np)
 	{
