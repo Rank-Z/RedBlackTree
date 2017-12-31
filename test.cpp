@@ -67,7 +67,7 @@ int myrand()
 
 
 
-void main()
+int main()
 {
 	RB_Tree<int,RB_node<int>> t;
 
@@ -97,6 +97,6 @@ void main()
 	}
 
 
-
+	return 0;
 
 }
