@@ -3,6 +3,7 @@
 
 #include<functional>
 #include<memory>
+#define _STD ::std::
 
 template<typename Key>
 class RB_node
@@ -12,7 +13,7 @@ public:
 	using value_type = key_type;
 
 	RB_node(const Key&key , RB_node* p = nullptr , RB_node* l = nullptr , RB_node* r = nullptr)
-		:k(key) , par(p) , left(l) , right(r)
+		:k(key) , par(p) , left(l) , right(r) , isred(false)
 	{   }
 
 	RB_node()
@@ -34,11 +35,19 @@ public:
 template<typename treetype>
 class RBtree_iterator
 {
+	using nodeptr = typename treetype::nodeptr;
+	using value_type = typename treetype::value_type;
 	RBtree_iterator() = delete;
 
-	RBtree_iterator(treetype* t,nodptr* n)
+	RBtree_iterator(treetype* t,nodeptr n)
 		:tree(t),node(n)
 	{   }
+
+	RBtree_iterator(const RBtree_iterator& right)
+	{
+		tree(right.tree);
+		node(right.node);
+	}
 
 	RBtree_iterator& operator++()
 	{
@@ -66,16 +75,26 @@ class RBtree_iterator
 		return ret;
 	}
 
+	value_type operator*() const
+	{
+		return node->k;
+	}
+
+	const nodeptr operator->() const
+	{
+		return node;
+	}
+
 private:
-	using nodeptr = typename treetype::nodeptr;
+	
 	
 	treetype* tree;
-	nodeptr* node;
+	nodeptr node;
 };
 
 template<typename nodetype,
-	typename Compare=::std::less<typename nodetype::key_type>,
-	typename Alloc=::std::allocator<nodetype>>
+	typename Compare=_STD less<typename nodetype::key_type>,
+	typename Allocator=_STD allocator<nodetype>>
 class RB_Tree
 {
 public:
@@ -83,9 +102,25 @@ public:
 	using key_type = Key;
 	using value_type = typename nodetype::value_type;
 	using nodeptr = nodetype*;
-	using allocator_type = Alloc;
+	using allocator_type = Allocator;
+	using key_comp = Compare;
 	using iterator = RBtree_iterator<RB_Tree>;
+
 	RB_Tree()
+	{
+		nil = &nilnode;
+		root = nil;
+	}
+
+	RB_Tree(const Compare& comp , const Allocator& alloc = Allocator())
+		:_comp(comp) , _alloc(alloc)
+	{
+		nil = &nilnode;
+		root = nil;
+	}
+
+	RB_Tree(const Allocator& alloc)
+		:_comp(Compare()) , _alloc(alloc)
 	{
 		nil = &nilnode;
 		root = nil;
@@ -94,6 +129,11 @@ public:
 	nodeptr& getroot()
 	{
 		return root;
+	}
+
+	nodeptr& getnil()
+	{
+		return nil;
 	}
 
 	int back_height()
@@ -133,7 +173,7 @@ public:
 		for (nodeptr temp = root; temp != nil;)
 		{
 			parent = temp;
-			if (np->getkey() < temp->getkey())
+			if (_comp(np->getkey(),temp->getkey()))
 				temp = temp->left;
 			else
 				temp = temp->right;
@@ -141,7 +181,7 @@ public:
 		np->par = parent;
 		if (parent == nil)
 			root = np;
-		else if (np->getkey() < parent->getkey())
+		else if (_comp(np->getkey(),parent->getkey()))
 			parent->left = np;
 		else
 			parent->right = np;
@@ -158,7 +198,7 @@ public:
 		{
 			if (key == now->getkey())
 				break;
-			else if (key < now->getkey())
+			else if (_comp(key,now->getkey()))
 				now = now->left;
 			else
 				now = now->right;
@@ -217,7 +257,7 @@ public:
 		if (y_original_color == false)
 			delete_fixup(x);
 
-		delete z;
+		freenode(z);
 	}
 
 	void clear()
@@ -282,10 +322,14 @@ private:
 
 	nodeptr buynode(const key_type& key)
 	{
-		allocator_type allocator;
-		nodeptr np=allocator.allocate(1);
-		allocator.construct(np , key);
+		nodeptr np=_alloc.allocate(1);
+		_alloc.construct(np , key);
 		return np;
+	}
+
+	void freenode(nodeptr np)
+	{
+		_alloc.deallocate(np,1);
 	}
 
 	void insert_fixup(nodeptr np)
@@ -495,12 +539,14 @@ private:
 
 		cleartree(np->left);
 		cleartree(np->right);
-		delete np;
+		freenode(np);
 	}
 
-	nodeptr root = nullptr;
+	nodeptr root;
 	nodetype nilnode;
 	nodeptr nil;
+	allocator_type _alloc;
+	key_comp _comp;
 };
 
 
